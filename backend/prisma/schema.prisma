@@ -1,0 +1,189 @@
+// This is your Prisma schema file for RKS Realty
+// Compatible with both SQLite (local dev) and PostgreSQL (production)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String        @id @default(uuid())
+  name                  String
+  email                 String        @unique
+  phone                 String?
+  password              String
+  role                  String        @default("BUYER") // BUYER, AGENT, ADMIN
+  
+  // Security fields
+  failedLoginAttempts   Int           @default(0)
+  lockoutUntil          DateTime?
+  mfaSecret             String?
+  isMfaEnabled          Boolean       @default(false)
+  refreshToken          String?
+  passwordResetToken    String?
+  passwordResetExpires  DateTime?
+
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  // Relationships
+  siteVisits            SiteVisit[]
+  leads                 Lead[]
+  properties            Property[]    @relation("AgentProperties")
+  auditLogs             AuditLog[]
+  documents             DocumentUpload[]
+
+  @@map("users")
+}
+
+model Property {
+  id              String        @id @default(uuid())
+  title           String
+  slug            String        @unique
+  description     String
+  type            String        // PLOT, VILLA, APARTMENT, COMMERCIAL
+  price           Float
+  pricePerSqFt    Float
+  areaSqFt        Float
+  location        String
+  city            String
+  state           String
+  pincode         String
+  address         String
+  bedrooms        Int?
+  bathrooms       Int?
+  isTitleVerified Boolean       @default(true)
+  verificationDoc String?
+  status          String        @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD
+  featured        Boolean       @default(false)
+  heroImage       String
+  images          String        // JSON string array of image URLs
+  amenities       String        // JSON string array of amenities
+  facing          String?
+  ownershipType   String?       @default("Freehold")
+  gatedCommunity  Boolean       @default(true)
+  
+  agentId         String?
+  agent           User?         @relation("AgentProperties", fields: [agentId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relationships
+  siteVisits      SiteVisit[]
+  leads           Lead[]
+  documents       DocumentUpload[]
+
+  @@map("properties")
+}
+
+model SiteVisit {
+  id            String      @id @default(uuid())
+  propertyId    String
+  property      Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  visitorName   String
+  visitorEmail  String
+  visitorPhone  String
+  visitDate     DateTime
+  timeSlot      String
+  notes         String?
+  status        String      @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("site_visits")
+}
+
+model Lead {
+  id            String      @id @default(uuid())
+  propertyId    String?
+  property      Property?   @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  name          String
+  email         String
+  phone         String
+  message       String
+  interestedIn  String?
+  budgetRange   String?
+  status        String      @default("NEW") // NEW, CONTACTED, IN_PROGRESS, CLOSED
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("leads")
+}
+
+model ValuationLead {
+  id            String      @id @default(uuid())
+  propertyType  String      // PLOT, VILLA, APARTMENT, COMMERCIAL
+  address       String
+  city          String
+  sizeSqFt      Float
+  bedrooms      Int?
+  bathrooms     Int?
+  expectedPrice Float?
+  ownerName     String
+  ownerEmail    String
+  ownerPhone    String
+  condition     String?     // EXCELLENT, GOOD, NEEDS_RENOVATION, RAW_LAND
+  notes         String?
+  status        String      @default("NEW") // NEW, REVIEWING, VALUATION_SENT, CONTACTED, CLOSED
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("valuation_leads")
+}
+
+model DocumentUpload {
+  id            String      @id @default(uuid())
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  propertyId    String?
+  property      Property?   @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  originalName  String
+  storedName    String
+  mimeType      String
+  size          Int
+  docType       String      // TITLE_DEED, PRE_APPROVAL, IDENTITY_PROOF, SURVEY_SKETCH
+  filePath      String
+
+  createdAt     DateTime    @default(now())
+
+  @@map("document_uploads")
+}
+
+model AuditLog {
+  id            String      @id @default(uuid())
+  userId        String?
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action        String      // e.g. AUTH_LOGIN, AUTH_LOCKOUT, MFA_VERIFIED, LEAD_STATUS_CHANGE
+  ip            String?
+  userAgent     String?
+  details       String?     // JSON string
+  
+  createdAt     DateTime    @default(now())
+
+  @@map("audit_logs")
+}
+
+model SiteContent {
+  id            Int         @id @default(1)
+  data          String
+  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+
+  @@map("site_content")
+}
